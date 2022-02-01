@@ -449,7 +449,7 @@ def get_egammas(energy_list):
     egammas = []
     for i in range(0, len(energy_list)):
         #print(energy_list[i])
-        egammas.append(get_EdphidE(0.1, energy_list[i])[0])
+        egammas.append(get_EdphidE(0.1, energy_list[i])[0]) #photons MeV^-1  per positron
 
     return egammas
 

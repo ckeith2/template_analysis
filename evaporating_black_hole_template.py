@@ -191,32 +191,13 @@ def interpolated_j(thetas, integral):
     return func
 
 
-def get_dNdE(egamma_values, energy_index, gamma = 1, mass = 2e16, for_normals = False, fbh = 1):
-    print('gamma ', gamma)
-    print('mass of bh: {}'.format(mass))
+def get_dNdE(egamma_values, energy_index, lum_interp, gamma = 1, mass = 2e16, for_normals = False, fbh = 1):
+    #print('gamma ', gamma)
+    #print('mass of bh: {}'.format(mass))
     
-    energiesforBH = np.logspace(np.log10(.05), np.log10(1e7), num = 1000) #in MeV
-    
-    #may need to integrate over this eventually
     thetas, integral, indices20, indices25, b, l = get_j_factors(massBH = mass, gam = gamma) #bhs*MeV/cm^2/BH
-    #find number of black holes
     
 
-    
-    #eventually make it so this is only calculated once per mass_bh
-    lum = (photon_spectrum.get_integral(egamma_values, mass_bh = mass)[1]) #units of photons per MeV per sec per BH
-    
-    #interpolate the luminosity
-    
-    lum_interp = log_interp1d(energiesforBH, lum, kind='linear') #integrate dn/dE in units of MeV
-    
-    high_bin, low_bin = get_deltaE_new(energy_index)
-    
-    lum_final = sp.integrate.quad(lum_interp, low_bin, high_bin)[0] #units of per second
-    
-    
-    #print('final luminosity:')
-    #print(lum_final)
     
     #now we need to add the integral back into the array where it was originally
     blank_array = np.empty(196608)
@@ -224,6 +205,12 @@ def get_dNdE(egamma_values, energy_index, gamma = 1, mass = 2e16, for_normals = 
     
     #blank_array[indices25] = integral
     
+
+    high_bin, low_bin = get_deltaE_new(energy_index)
+    lum_final = sp.integrate.quad(lum_interp, low_bin, high_bin)[0] #units of per second
+    
+    #print('final luminosity:')
+    #print(lum_final)
 
     
     tempBH_ev = mass*5.61e26 #mass in GeV, converted then to MeV
@@ -239,6 +226,8 @@ def get_dNdE(egamma_values, energy_index, gamma = 1, mass = 2e16, for_normals = 
     
     blank_array[indices25] = integral
     
+    #print(np.nansum(blank_array))
+    
     #blank_array[indices25] = integral
     #theta is always going to be positive
     #hp.mollview(np.log10(blank_array))
@@ -253,8 +242,9 @@ def get_dNdE(egamma_values, energy_index, gamma = 1, mass = 2e16, for_normals = 
     if for_normals:
         #need to only return the inner 20 degrees
         new_arr = blank_array[indices20]
-        return new_arr*lum_final/tempBH_ev/4/np.pi#/5938
+        return new_arr*lum_final/tempBH_ev/4/np.pi #photons per sec per cm^2 per sr
     
 
-    
+    #print('tot')
+    #print(np.sum(blank_array*lum_final/tempBH_ev/4/np.pi))
     return blank_array*lum_final/tempBH_ev/4/np.pi #units of photons per str per sec per cm^2

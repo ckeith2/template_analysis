@@ -20,6 +20,8 @@ import healpy as hp
 from scipy import nan
 import math
 import scipy as sp
+import time
+
 
 def nfw_profile_density(r, gamma = 1):
     #need to eventually normalize to local density (4 GeV/cm^2)
@@ -27,6 +29,7 @@ def nfw_profile_density(r, gamma = 1):
     r_s = 20 #kpc
     #make sure r is in kpc
     rho_0 = get_rho0(gamma_forrho0 = gamma) #normalized such that ρ = 0.4 GeV/cm3 at r = 8.25 kpc
+    #rho_0 = 0.4
     rho = rho_0/(r/r_s)**(gamma)/((1+r/r_s)**(3-gamma)) # GeV/cm^3
     return rho
 
@@ -63,6 +66,7 @@ def range_over_l(theta, gamma_here = 1):
     
     return l, density
 
+
 def get_long_lat(longlatboo = True):
 
     filelist = ['Bremss_00320087_E_50-814008_MeV_healpix_128.fits', 'Bremss_SL_Z6_R20_T100000_C5_E_50-814008_MeV_healpix_128.fits', 'pi0_Model_A_E_50-814008_MeV_healpix_128.fits', 'pi0_Model_F_E_50-814008_MeV_healpix_128.fits', 'ICS_Model_A_E_50-814008_MeV_healpix_128.fits', 'ICS_Model_F_E_50-814008_MeV_healpix_128.fits']
@@ -94,25 +98,53 @@ def get_long_lat(longlatboo = True):
 
 
 def get_j_factors(gam = 1):
-
+    
+    
     btest, ltest, indices20, indices = get_long_lat()
 
     thetas = np.sqrt(btest**2+ltest**2)
     
-    integral = []
+    integral = np.empty(thetas.shape)
     
     #ls are in kpc
+    start = time.time()
+    R_GC = 8.25 #kpc
+    r_s = 20 #kpc
+    rho_NFW = 0.4 #GeV/cm^3
+    l = np.linspace(1, 60, 5000) #in kpc
+    l1 = l**2+R_GC**2
+    l2 = 2*l*R_GC
+    l3 = l*3.086e21
+    rho_0 = (R_GC/r_s)**(gam)*rho_NFW*(1+R_GC/r_s)**(3-gam)
+
+    
+    for i, theta in enumerate(thetas):
+        #get the NFW density, and the lengths
+        r = np.sqrt(l1-l2*math.cos(theta/180*np.pi))/r_s
+        n_BH = rho_0/(r)**(gam)/((1+r)**(3-gam)) # GeV/cm^3 #*1e-4 #this also includes rho_0, can also use 1e-4 for PBH as DM 
+        integral[i] = (np.trapz(n_BH**2, x = l3)) #trapezoidal rule, with n_Bh on y axis and the length on x
+        #in GeV^2/cm^5?
+
+    '''
+    integral = []
     
     for theta in thetas:
         #get the NFW density, and the lengths
-        ls, rho = range_over_l(theta, gamma_here = gam)
+        ls, rho = range_over_l(theta, gamma_here = gam) #GeV/cm^3
         n_BH = rho #*1e-4 #this also includes rho_0, can also use 1e-4 for PBH as DM 
         ls_incm3 = ls*3.086e21
         integral.append(np.trapz(n_BH**2, x = ls_incm3)) #trapezoidal rule, with n_Bh on y axis and the length on x
-    integral = np.asarray(integral) #in GeV/cm^2?
+        #in GeV^2/cm^5?
+    end = time.time()
+    print(integral[30])
+    print('total time old:')
+    print(end - start)
+    '''
+    
+    
+    
             
-    return thetas, integral, indices20, indices#*lum/4/np.pi #units of GeV/cm^-2? 
-    #return thetas, integral#*lum/4/np.pi #units of GeV/cm^-2? 
+    return thetas, integral, indices20, indices
 
 
 
@@ -143,8 +175,8 @@ def make_image(integral):
     #hp.mollview(np.log10(np.log10(test20)), rot=(0,0,90))
     hp.mollview(np.log10(test20))
     
-def darksusy(massparticle, highe, lowe, channel = 5):
-    x = np.loadtxt('yield_DS_keith40.dat', dtype=str).T
+def darksusy(massparticle, highe, lowe, channel = 5, filenm = 'yield_DS_keith40.dat'):
+    x = np.loadtxt(filenm, dtype=str).T
     
     energies = x[1].astype(np.float)
     yieldperann = x[2].astype(np.float)
@@ -159,8 +191,8 @@ def darksusy(massparticle, highe, lowe, channel = 5):
     
     #Need to integrate over the energy bin that we are considering
     
-def darksusy2(massparticle, energy, channel = 5):
-    x = np.loadtxt('yield_DS_keith40.dat', dtype=str).T
+def darksusy2(massparticle, energy, channel = 5, filenm = 'yield_DS_keith40.dat'):
+    x = np.loadtxt(filenm, dtype=str).T
     energies = x[1].astype(np.float)
     yieldperann = x[2].astype(np.float)
     
@@ -187,35 +219,38 @@ def log_interp1d(xx, yy, kind='linear'):
     log_interp = lambda zz: np.power(10.0, lin_interp(np.log10(zz)))
     return log_interp
     
-def get_dNdE(highenergy, lowenergy, massx = 40, sigmav = 1.4e-26, analyze_data = False, for_normals = False, energyhere = 1):
+def get_dNdE(highenergy, lowenergy, massx = 40, sigmav = 1.4e-26, analyze_data = False, for_normals = False, energyhere = 1, darkmfilename = 'yield_DS_keith40.dat'):
+    print(darkmfilename)
     thetas, integral, indices20, indices25 = get_j_factors(gam = 1.2) #in GeV^2/cm^5?, gamma 1.2
-    print('sigmav: {}'.format(sigmav))
-    print('mass: {} GeV'.format(massx))
-
-    
+    #print('sigmav: {}'.format(sigmav))
+    #print('mass: {} GeV'.format(massx))
     #now we need to add the integral back into the array where it was originally
     blank_array = np.empty(196608)
     blank_array[:] = 0
     
     count = 0
     blank_array[indices25] = integral
+    
         
     if for_normals:
-        dnde = darksusy2(massx, energyhere, channel = 5) #per GeV per ann
-        
-        #ann = 1/(darksusy(massx, highenergy, lowenergy)) #total annihilations?
-        #print('total annihilations: {}'.format(ann))
+        dnde = darksusy2(massx, energyhere, channel = 5, filenm = darkmfilename) #per GeV per ann
+        #print('dnde: {}'.format(dnde))
+        #print('rho squared dl domega')
+
+
         #need to only return the inner 20 degrees
         new_arr = blank_array[indices20]
-        return thetas, new_arr*dnde*sigmav/massx**2/8/np.pi/1e3#*ann #units of per second per str per cm^2#, to per MeV
-    
+        #print(np.nansum(new_arr)/196608*4*np.pi)
+        return thetas, new_arr*dnde*sigmav/massx**2/8/np.pi/1e3#*ann #units of per second per str per cm^2 per MeV
+
     if analyze_data:
         dnde = 1
     else:
-        dnde = darksusy(massx, highenergy, lowenergy, channel = 5)
-        print('dnde:')
-        print(dnde)
+        dnde = darksusy(massx, highenergy, lowenergy, channel = 5, filenm = darkmfilename) #per ann
+        #print('dnde:')
+        #print(dnde)
     
-    return thetas, blank_array*dnde*sigmav/massx**2/8/np.pi#/5938#/1e3#/5910 #units of photons  per str per sec per cm^2, 5910 for area
+    
+    return thetas, blank_array*dnde*sigmav/massx**2/8/np.pi#/5938#/1e3#/5910 #units of photons  per str per sec per cm^2 5910 for area
     #do I need the 1e3?
 
