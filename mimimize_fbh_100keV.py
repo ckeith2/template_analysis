@@ -35,7 +35,7 @@ from os import walk
 import re
 import acceptance_psf_eastrogam as aaa
 import photon_spectrum
-import evaporating_black_hole_template as dm_template
+import evaporating_black_hole_template100MeV.py as dm_template
 import subprocess
 
 
@@ -803,22 +803,6 @@ def likelihood_poisson_forsigmav(constants, piflux, icsflux, bremflux, egbtest, 
     #scipy.special.gammaln is for the log of a factorial
     return -2*np.nansum(fprob) #the sum of all the log likelihoods for each spatial point. 
 
-#find index in energy list closest to this energy
-def find_nearest(energiesforBH, central_energies, lum):
-    array = np.array(energiesforBH[::-1])
-    backwardslum = np.array(lum[::-1])
-    plt.plot(energiesforBH, lum*np.array(energiesforBH)**2)
-    idxs = len(energiesforBH)-np.where(backwardslum*np.array(array)**2 >= np.nanmax(backwardslum)*np.array(array)**2/3e2)[0]
-    value = energiesforBH[idxs[0]]
-    
-    array = np.asarray(central_energies)
-    idx = (np.abs(array - value)).argmin()
-    
-    if idx < 2:
-        return 2
-    else:
-        return idx
-
 
 
 def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 'yield_DS_keith40.dat', massdm = 40, blackholem = 2e16, gam = 1.6):
@@ -861,13 +845,7 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
     print('-----------')
     print('gamma for BHs: {}'.format(gam))
     print('mass for BHs: {}'.format(blackholem))
-    highest_range = find_nearest(energiesforBH, central_energies, lum)
-    print('highest energy going to:')
-    print(central_energies[highest_range])
-    print('index:')
-    print(highest_range)
-    print('-------------------------')
-    for energyidx in range(0, highest_range):
+    for energyidx in range(0, 33):
         print(energyidx)
         print('energy here: {}'.format(energies[energyidx]))
         # You should change 'test' to your preferred folder.
@@ -1000,14 +978,14 @@ def root_find(fbhtesting, k, namefile = 'testingnew/', dmfname = 'yield_DS_keith
 
 
 filelist1 = ['Bremss_00320087_E_50-814008_MeV_healpix_128.fits', 'Bremss_SL_Z6_R20_T100000_C5_E_50-814008_MeV_healpix_128.fits', 'pi0_Model_A_E_50-814008_MeV_healpix_128.fits', 'pi0_Model_F_E_50-814008_MeV_healpix_128.fits', 'ICS_Model_A_E_50-814008_MeV_healpix_128.fits', 'ICS_Model_F_E_50-814008_MeV_healpix_128.fits']
-filelist = ['bremss_healpix_reshuffled_53templates_0511MeV_reran.fits', 'bremss_healpix_reshuffled_53templates_0511MeV_reran.fits', 'pi0_decay_healpix_reshuffled_53templates_0511MeV_reran.fits', 'pi0_decay_healpix_reshuffled_53templates_0511MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits']
+filelist = ['bremss_healpix_reshuffled_61templates_01MeV_reran.fits', 'bremss_healpix_reshuffled_61templates_01MeV_reran.fits', 'pi0_decay_healpix_reshuffled_61templates_01MeV_reran.fits', 'pi0_decay_healpix_reshuffled_61templates_01MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_61templates_01MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_61templates_01MeV_reran.fits']
 
-bremss_reopen = fits.open('ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits')
+bremss_reopen = fits.open('bremss_healpix_reshuffled_61templates_01MeV_reran.fits')
 bremssenergy_list = np.array([bremss_reopen[i].header['MID_E'] for i in range(len(bremss_reopen) - 1)])
 central_energies = np.copy(bremssenergy_list)
 
 
-point_sources = ['PS_nonfloat_511MeV_0-52.fits']
+point_sources = ['PS_nonfloat_01MeV_0-61.fits']
 
 #for astrogam, use 5 years
 exposure_time = 1.578e8
@@ -1018,7 +996,7 @@ angle_interp = aaa.get_angle_interp()
 
 
 #Egammas for evaporating black holes
-energiesforBH = np.logspace(np.log10(.1), np.log10(1e6), num = 1000)
+energiesforBH = np.logspace(np.log10(.05), np.log10(1e7), num = 1000)
 #egamma_values = photon_spectrum.get_egammas(energiesforBH)
 egamma_values = fits.open('egammavals.fits')[0].data
 

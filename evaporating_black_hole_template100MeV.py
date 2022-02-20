@@ -19,7 +19,7 @@ import scipy as sp
 filelist = ['Bremss_00320087_E_50-814008_MeV_healpix_128.fits']
 energies = np.logspace(np.log10(.1), np.log10(1e6), num = 1000)
 
-bremss_reopen = fits.open('bremss_healpix_reshuffled_53templates_0511MeV_reran.fits')
+bremss_reopen = fits.open('bremss_healpix_reshuffled_61templates_01MeV_reran.fits')
 bremssenergy_list = np.array([bremss_reopen[i].header['MID_E'] for i in range(len(bremss_reopen) - 1)])
 central_energies = np.copy(bremssenergy_list)
 

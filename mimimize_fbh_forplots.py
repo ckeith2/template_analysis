@@ -208,7 +208,7 @@ def psf_smoothing(n, energyidx, inner20psf = False, pointsource = False, use_og 
     numpix = np.linspace(0, hdu[0].header['NPIX']-1, num = hdu[0].header['NPIX'])
     NSIDE = int(hdu[0].header['NSIDE'])
     vec = hp.ang2vec(np.pi/2, 0)
-    ipix_disc = hp.query_disc(nside=NSIDE, vec=vec, radius=np.radians(20), inclusive = False)
+    ipix_disc = hp.query_disc(nside=NSIDE, vec=vec, radius=np.radians(2000), inclusive = False)
     
     init_sum = np.sum(data50[ipix_disc])
     #print(init_sum)
@@ -251,7 +251,7 @@ def psf_smoothing_DM(energyidx, crosssec, anal_data = False, mass_dm = 40, use_o
     numpix = np.linspace(0, hdu[0].header['NPIX']-1, num = hdu[0].header['NPIX'])
     NSIDE = int(hdu[0].header['NSIDE'])
     vec = hp.ang2vec(np.pi/2, 0)
-    ipix_disc = hp.query_disc(nside=NSIDE, vec=vec, radius=np.radians(20), inclusive = False)
+    ipix_disc = hp.query_disc(nside=NSIDE, vec=vec, radius=np.radians(2000), inclusive = False)
     
     init_sum = np.sum(data50[ipix_disc])
     #print('init sum: {}'.format(init_sum))
@@ -300,7 +300,7 @@ def poisson_dist(n, energyidx, cross_section =1.4e-26, dm = False, dm_bh = False
     if dm:
         convolved_data = psf_smoothing_DM(energyidx, cross_section, anal_data = analyze_data, mass_dm = dm_mass, filename = filenm)/deltaE
     elif egb:
-        convolved_data_init = np.empty(5938) #needs to be the length of the good vals
+        convolved_data_init = np.empty(196608) #needs to be the length of the good vals
         convolved_data_init.fill(1) #counts per cm^2 per sec per str
         convolved_data = convolved_data_init*counts #in units of photons per cm^2 per mev per str per sec
     elif points:
@@ -818,10 +818,15 @@ def find_nearest(energiesforBH, central_energies, lum):
         return 2
     else:
         return idx
+    
+def find_nearest_10(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
 
 
 
-def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 'yield_DS_keith40.dat', massdm = 40, blackholem = 2e16, gam = 1.6):
+def get_templates(fbh, ktestname, dmfilename = 'yield_DS_keith40.dat', massdm = 40, blackholem = 2e16, gam = 1.6):
     ktest_array = readfile(ktestname)[0].data
     energies = np.copy(central_energies)
     deltae_cut = np.copy(deltae)
@@ -837,49 +842,26 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
     egb_counts = get_all_egb(energies, deltae)/deltae_cut #units of counts per cm^2 per sec per str per MeV
     ##These are the names of the parameters we are fitting.
     parameters = ['a0', 'a1', 'a2', 'a3']
-    folder = './pymultinest_chains/' + str(name_of_file)
-    livepoints = 400
-
-    '''Check if directory exists, if not, create it'''
-    import os
-
-    # You should change 'test' to your preferred folder.
-    MYDIR1 = (folder + "fbh" + str(fbh))
-    folder_name = "fbh" + str(fbh)
-    CHECK_FOLDER = os.path.isdir(MYDIR1)
-
-    # If folder doesn't exist, then create it.
-    if not CHECK_FOLDER:
-        os.makedirs(MYDIR1)
-        print("created folder : ", MYDIR1)
-
-    else:
-        print(MYDIR1, "folder already exists.")
 
 
     likefbh = 0
     print('-----------')
     print('gamma for BHs: {}'.format(gam))
     print('mass for BHs: {}'.format(blackholem))
-    highest_range = find_nearest(energiesforBH, central_energies, lum)
-    print('highest energy going to:')
-    print(central_energies[highest_range])
-    print('index:')
-    print(highest_range)
     print('-------------------------')
-    for energyidx in range(0, highest_range):
+    
+    #want to find the energy bin around 10 MeV
+    
+    mev10 = find_nearest_10(energies, 10)
+    
+    print('energy/bin at 10 MeV:{}'.format(energies[mev10], mev10))
+    
+    
+    for energyidx in range(mev10, mev10+1):
         print(energyidx)
         print('energy here: {}'.format(energies[energyidx]))
         # You should change 'test' to your preferred folder.
-        MYDIR = (MYDIR1 + "/chain" + str(energyidx))
-        CHECK_FOLDER = os.path.isdir(MYDIR)
 
-        # If folder doesn't exist, then create it.
-        if not CHECK_FOLDER:
-            os.makedirs(MYDIR)
-            print("created folder : ", MYDIR)
-        else:
-            print(MYDIR, "folder already exists.")
         print(energyidx, energies[energyidx])
 
         #photons per pixel
@@ -904,80 +886,9 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
         #original data
         ktest = ktest_array[energyidx] #ktest does not include black holes
         
-        args = (pitest, icstest, bremtest, pointstest, egbtest, darkmtest, blackholetest, ktest)
-        #print('-----------------------')
-        #print(np.nansum(ktest))
-        #print(np.nansum(pitest+ icstest+ bremtest+ pointstest+ egbtest+ darkmtest))
-        #print(np.nansum(pitest+ icstest+ bremtest+ pointstest+ egbtest+ darkmtest+blackholetest))
-        #print('-----------------------')
+        return pitest, icstest, bremtest, pointstest, egbtest, darkmtest, blackholetest, ktest
         
-        cube_limits = [(-6, 12), (-4, 8), (-4, 8), (-4, 8)]
-        
-        def prior(cube, ndim, nparams):
-            #cube[0] = (cube[0]*np.abs(np.log10(1.1)-np.log10(.9)) - np.log10(.9)) #from 1e-4 to 1e6 apparently
-            cube[0] = (cube[0]*cube_limits[0][1] + cube_limits[0][0])
-            cube[1] = (cube[1]*cube_limits[1][1] + cube_limits[1][0])
-            cube[2] = (cube[2]*cube_limits[2][1] + cube_limits[2][0])
-            cube[3] = (cube[3]*cube_limits[3][1] + cube_limits[3][0])
-            
-    
-        ##This is the loglikelihood function for multinest – it sends the cube,
-        #and then a bunch of different arrays that were used in fitting, but were constant, to the pymultinest code
-        def loglikelihood_formulti(cube, ndim, nparms):
-            return likelihood_poisson_multinest(cube, ndim, nparms)
-        
-        #cube, pitest, icstest, bremtest, egbtest, pointstest, darkmtest, blackholetest, ktest
-        def likelihood_poisson_multinest(cube, ndim, nparams):
-            pi, ics, brem, points, egb, darkm, blackhole, k = args
-            #print(np.sum(pi+ics+brem+points+egb+darkm+blackhole))
-            
-            a0 = 10**cube[0]
-            a1 = 10**cube[1]
-            a2 = 10**cube[2]
-            a3 = 10**cube[3]
-            
-            #print(a0, a1, a2, a3)
-    
-            lamb = a0*pi+a1*ics+a2*brem+a3*points+egb+darkm+blackhole #egb is constant
-            fprob = -scipy.special.gammaln(k+1)+k*np.log(lamb)-lamb #log likelihood of poisso
-            #print('---------------------------------')
-            return 2*np.nansum(fprob) #perhaps add negative back, perhaps add 2 back?
-        
-        def likelihood_poisson(a0log, a1log, a2log, a3log):
-            pi, ics, brem, points, egb, darkm, blackhole, k = args
-            #print(np.sum(pi+ics+brem+points+egb+darkm+blackhole))
-            #print(a0, a1, a2, a3)
-            a0 = 10**a0log
-            a1 = 10**a1log
-            a2 = 10**a2log
-            a3 = 10**a3log
-    
-            lamb = a0*pi+a1*ics+a2*brem+a3*points+egb+darkm+blackhole #egb is constant
-            fprob = -scipy.special.gammaln(k+1)+k*np.log(lamb)-lamb #log likelihood of poisso
-            #print('---------------------------------')
-            return -2*np.nansum(fprob) #perhaps add negative back, perhaps add 2 back?
 
-        finals = pymultinest.run(loglikelihood_formulti, prior, int(len(parameters)), outputfiles_basename=MYDIR+"/"+ str(energyidx), n_live_points=livepoints, resume=True, verbose=True)
-        json.dump(parameters, open(MYDIR+'/' + str(energyidx) + 'params' +'.json', 'w'))
-        const = get_loglikeli(MYDIR, energyidx, MYDIR1, [pitest, icstest, bremtest, egbtest, pointstest, ktest, darkmtest, blackholetest])
-        m = Minuit(likelihood_poisson, a0log=np.log10(const[0]), a1log = np.log10(const[1]), a2log = np.log10(const[2]), a3log = np.log10(const[3]))
-        lowval = 1
-        highval = 1
-
-        m.limits = [(np.log10(const[0])-lowval, np.log10(const[0])+highval), (np.log10(const[1])-lowval, np.log10(const[1])+highval), (np.log10(const[2])-lowval, np.log10(const[2])+highval), (np.log10(const[3])-lowval, np.log10(const[3])+highval)]
-        m.migrad()
-        m.hesse()
-        
-        print(m.values)
-        
-        fin_consts = [10**m.values[0], 10**m.values[1], 10**m.values[2], 10**m.values[3]]
-        
-        print('constants from minuit: ')
-        print(fin_consts)
-        likelihood = likelihood_poisson(m.values[0], m.values[1], m.values[2], m.values[3])
-        #print('current likelihood: {}'.format(likelihood))
-        likefbh += likelihood
-    print('final likelihood: {}'.format(likefbh))
     return likefbh
 
 def twosig_fbh(testfbh, likefbh0, ktest, name_of_file = 'testingnew/', dmfilename = 'yield_DS_keith40.dat', massdm = 40, blackholem = 2e16, gam = 1.6):

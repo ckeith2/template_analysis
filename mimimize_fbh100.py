@@ -1000,14 +1000,14 @@ def root_find(fbhtesting, k, namefile = 'testingnew/', dmfname = 'yield_DS_keith
 
 
 filelist1 = ['Bremss_00320087_E_50-814008_MeV_healpix_128.fits', 'Bremss_SL_Z6_R20_T100000_C5_E_50-814008_MeV_healpix_128.fits', 'pi0_Model_A_E_50-814008_MeV_healpix_128.fits', 'pi0_Model_F_E_50-814008_MeV_healpix_128.fits', 'ICS_Model_A_E_50-814008_MeV_healpix_128.fits', 'ICS_Model_F_E_50-814008_MeV_healpix_128.fits']
-filelist = ['bremss_healpix_reshuffled_53templates_0511MeV_reran.fits', 'bremss_healpix_reshuffled_53templates_0511MeV_reran.fits', 'pi0_decay_healpix_reshuffled_53templates_0511MeV_reran.fits', 'pi0_decay_healpix_reshuffled_53templates_0511MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits']
+filelist = ['bremss_healpix_reshuffled_61templates_01MeV_reran.fits', 'bremss_healpix_reshuffled_61templates_01MeV_reran.fits', 'pi0_decay_healpix_reshuffled_61templates_01MeV_reran.fits', 'pi0_decay_healpix_reshuffled_61templates_01MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_61templates_01MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_61templates_01MeV_reran.fits']
 
-bremss_reopen = fits.open('ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits')
+bremss_reopen = fits.open('bremss_healpix_reshuffled_61templates_01MeV_reran.fits')
 bremssenergy_list = np.array([bremss_reopen[i].header['MID_E'] for i in range(len(bremss_reopen) - 1)])
 central_energies = np.copy(bremssenergy_list)
 
 
-point_sources = ['PS_nonfloat_511MeV_0-52.fits']
+point_sources = ['PS_nonfloat_01MeV_0-61.fits']
 
 #for astrogam, use 5 years
 exposure_time = 1.578e8
@@ -1018,7 +1018,7 @@ angle_interp = aaa.get_angle_interp()
 
 
 #Egammas for evaporating black holes
-energiesforBH = np.logspace(np.log10(.1), np.log10(1e6), num = 1000)
+energiesforBH = np.logspace(np.log10(.05), np.log10(1e7), num = 1000)
 #egamma_values = photon_spectrum.get_egammas(energiesforBH)
 egamma_values = fits.open('egammavals.fits')[0].data
 

@@ -781,9 +781,10 @@ def get_loglikeli(MYDIR, energyidx, MYDIR1, templates):
     testpoints1 = (10**f[1]) #icstest
     testpoints2 = (10**f[2]) #bremtest
     testpoints3 = (10**f[3]) #points
+    testpoints4 = (10**f[4]) #points single
     
           
-    constants=[testpoints0, testpoints1, testpoints2, testpoints3]
+    constants=[testpoints0, testpoints1, testpoints2, testpoints3, testpoints4]
     #print('constants: ')
     #print(constants)
     return constants
@@ -911,7 +912,7 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
         #print(np.nansum(pitest+ icstest+ bremtest+ pointstest+ egbtest+ darkmtest+blackholetest))
         #print('-----------------------')
         
-        cube_limits = [(-6, 12), (-4, 8), (-4, 8), (-4, 8)]
+        cube_limits = [(-6, 12), (-4, 8), (-4, 8), (-4, 8), (-4, 8)]
         
         def prior(cube, ndim, nparams):
             #cube[0] = (cube[0]*np.abs(np.log10(1.1)-np.log10(.9)) - np.log10(.9)) #from 1e-4 to 1e6 apparently
@@ -919,6 +920,7 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
             cube[1] = (cube[1]*cube_limits[1][1] + cube_limits[1][0])
             cube[2] = (cube[2]*cube_limits[2][1] + cube_limits[2][0])
             cube[3] = (cube[3]*cube_limits[3][1] + cube_limits[3][0])
+            cube[4] = (cube[4]*cube_limits[4][1] + cube_limits[4][0])
             
     
         ##This is the loglikelihood function for multinest – it sends the cube,
@@ -928,31 +930,33 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
         
         #cube, pitest, icstest, bremtest, egbtest, pointstest, darkmtest, blackholetest, ktest
         def likelihood_poisson_multinest(cube, ndim, nparams):
-            pi, ics, brem, points, egb, darkm, blackhole, k = args
+            pi, ics, brem, points, points1, egb, darkm, blackhole, k = args
             #print(np.sum(pi+ics+brem+points+egb+darkm+blackhole))
             
             a0 = 10**cube[0]
             a1 = 10**cube[1]
             a2 = 10**cube[2]
             a3 = 10**cube[3]
+            a4 = 10**cube[3]
             
             #print(a0, a1, a2, a3)
     
-            lamb = a0*pi+a1*ics+a2*brem+a3*points+egb+darkm+blackhole #egb is constant
+            lamb = a0*pi+a1*ics+a2*brem+a3*points+a4*points1+egb+darkm+blackhole #egb is constant
             fprob = -scipy.special.gammaln(k+1)+k*np.log(lamb)-lamb #log likelihood of poisso
             #print('---------------------------------')
             return 2*np.nansum(fprob) #perhaps add negative back, perhaps add 2 back?
         
-        def likelihood_poisson(a0log, a1log, a2log, a3log):
-            pi, ics, brem, points, egb, darkm, blackhole, k = args
+        def likelihood_poisson(a0log, a1log, a2log, a3log, a4log):
+            pi, ics, brem, points, points1, egb, darkm, blackhole, k = args
             #print(np.sum(pi+ics+brem+points+egb+darkm+blackhole))
             #print(a0, a1, a2, a3)
             a0 = 10**a0log
             a1 = 10**a1log
             a2 = 10**a2log
             a3 = 10**a3log
+            a4 = 10**a4log
     
-            lamb = a0*pi+a1*ics+a2*brem+a3*points+egb+darkm+blackhole #egb is constant
+            lamb = a0*pi+a1*ics+a2*brem+a3*points+a4*points1+egb+darkm+blackhole #egb is constant
             fprob = -scipy.special.gammaln(k+1)+k*np.log(lamb)-lamb #log likelihood of poisso
             #print('---------------------------------')
             return -2*np.nansum(fprob) #perhaps add negative back, perhaps add 2 back?
@@ -1007,7 +1011,8 @@ bremssenergy_list = np.array([bremss_reopen[i].header['MID_E'] for i in range(le
 central_energies = np.copy(bremssenergy_list)
 
 
-point_sources = ['PS_nonfloat_511MeV_0-52.fits']
+point_sources = ['Remainingsources_Single_brightestsourcefloating.fits']
+brightest_pointsource = ['4FGLJ1826.2-1450_Single_brightestsourcefloating.fits']
 
 #for astrogam, use 5 years
 exposure_time = 1.578e8

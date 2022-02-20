@@ -193,11 +193,15 @@ def subtract(n):
 
 
 #n = 4 for ICSA, n = 2 for pi0
-def psf_smoothing(n, energyidx, inner20psf = False, pointsource = False, use_og = False):
+def psf_smoothing(n, energyidx, inner20psf = False, pointsource = False, use_og = False, single = False):
     inner20psf = False
     if pointsource:
-        icsa = readfile(point_sources[0])
-        data50 = icsa[energyidx].data
+        if not single:
+            icsa = readfile(point_sources[0])
+            data50 = icsa[energyidx].data
+        if single:
+            icsa = readfile(brightest_pointsource[0])
+            data50 = icsa[energyidx].data
     else:
         icsa = readfile(filelist[n])
         data50 = reshape_file(icsa, energyidx, inner20 = inner20psf)
@@ -287,7 +291,7 @@ def get_deltaE(n):
 
 
 
-def poisson_dist(n, energyidx, cross_section =1.4e-26, dm = False, dm_bh = False, analyze_data = False, dm_mass = 40, egb = False, points = False, counts = 0, evapbh = True, blackholem = 2e16,  luminterpolated = 1, gamm = 1.6, filenm = 'yield_DS_keith40.dat'):   
+def poisson_dist(n, energyidx, cross_section =1.4e-26, dm = False, dm_bh = False, analyze_data = False, dm_mass = 40, egb = False, points = False, counts = 0, evapbh = True, blackholem = 2e16,  luminterpolated = 1, gamm = 1.6, filenm = 'yield_DS_keith40.dat', single_source = False):   
     '''
     Performs a PSF smoothing of the array, before converting it into photons per pixel
     
@@ -304,7 +308,7 @@ def poisson_dist(n, energyidx, cross_section =1.4e-26, dm = False, dm_bh = False
         convolved_data_init.fill(1) #counts per cm^2 per sec per str
         convolved_data = convolved_data_init*counts #in units of photons per cm^2 per mev per str per sec
     elif points:
-        convolved_data = psf_smoothing(n, energyidx, pointsource = True)
+        convolved_data = psf_smoothing(n, energyidx, pointsource = True, single = single_source)
     elif dm_bh:
         convolved_data = psf_smoothing_DM(energyidx, cross_section, lum_interp = luminterpolated, anal_data = analyze_data, evapbh = True, massbh = blackholem, gam = gamm)/deltaE
     else:
@@ -541,10 +545,13 @@ def get_normalizations_spectrum(deltaE, cross_sec = 1.4e-26, dm_mass = 40, f_bh 
     #EGB template
     egb_templates = np.array(get_all_egb(energies, deltaE)) #units of counts per cm^2 per sec per str
     
-    #Point Source Template
+    #Point Source Template and single point source
     point_source_arr = []
+    point_source_arr_single = []
     for index in range(0, len(energies)):
         smaller_index = index
+        point_source_arr_single.append(np.nansum(get_curves_pointsource(index, smaller_index, inner20psf = True, single = True))) ##units of photons per cm^2 per sec per sr
+
         point_source_arr.append(np.nansum(get_curves_pointsource(index, smaller_index, inner20psf = True))) ##units of photons per cm^2 per sec per sr
     
     
@@ -555,8 +562,12 @@ def get_normalizations_spectrum(deltaE, cross_sec = 1.4e-26, dm_mass = 40, f_bh 
 
     return range_templates, energies, [np.array(templates[0]), np.array(templates[1]), np.array(templates[2]), np.array(egb_templates), np.array(point_source_arr), np.array(dm_templates_tot), np.array(dmevap_tot)] #counts per pixel
     
-def get_curves_pointsource(energyidx, smallindex, inner20psf = True):
-    pointsourcedata = readfile(point_sources[0])[smallindex].data
+def get_curves_pointsource(energyidx, smallindex, inner20psf = True, single = False):
+    
+    if not single:
+        pointsourcedata = readfile(point_sources[0])[smallindex].data
+    else:
+        pointsourcedata = readfile(brightest_pointsource[0])[smallindex].data
     
     hdu = readfile(filelist1[0])
     numpix = np.linspace(0, hdu[0].header['NPIX']-1, num = hdu[0].header['NPIX'])
@@ -736,7 +747,7 @@ def get_ktests(save= False, dmfilename = 'yield_DS_keith40.dat', massdm = 40, fi
 
 
         #Point Sources
-        pointstest = poisson_dist(np.nan, energyidx, points = True) 
+        pointstest = poisson_dist(np.nan, energyidx, points = True, single_source = True) + poisson_dist(np.nan, energyidx, points = True, single_source = False)
 
 
         #Dark matter
@@ -776,14 +787,16 @@ def get_loglikeli(MYDIR, energyidx, MYDIR1, templates):
 
     #f = open(path_to_this_file)
     #filehere = json.load(f)
-    f = np.loadtxt(path_to_this_file, skiprows = 4, max_rows = 4).T[1]
+    f = np.loadtxt(path_to_this_file, skiprows = 4, max_rows = 5).T[1]
+    print(f)
     testpoints0 = (10**f[0]) #pitest
     testpoints1 = (10**f[1]) #icstest
     testpoints2 = (10**f[2]) #bremtest
     testpoints3 = (10**f[3]) #points
+    testpoints4 = (10**f[4]) #points single
     
           
-    constants=[testpoints0, testpoints1, testpoints2, testpoints3]
+    constants=[testpoints0, testpoints1, testpoints2, testpoints3, testpoints4]
     #print('constants: ')
     #print(constants)
     return constants
@@ -803,22 +816,6 @@ def likelihood_poisson_forsigmav(constants, piflux, icsflux, bremflux, egbtest, 
     #scipy.special.gammaln is for the log of a factorial
     return -2*np.nansum(fprob) #the sum of all the log likelihoods for each spatial point. 
 
-#find index in energy list closest to this energy
-def find_nearest(energiesforBH, central_energies, lum):
-    array = np.array(energiesforBH[::-1])
-    backwardslum = np.array(lum[::-1])
-    plt.plot(energiesforBH, lum*np.array(energiesforBH)**2)
-    idxs = len(energiesforBH)-np.where(backwardslum*np.array(array)**2 >= np.nanmax(backwardslum)*np.array(array)**2/3e2)[0]
-    value = energiesforBH[idxs[0]]
-    
-    array = np.asarray(central_energies)
-    idx = (np.abs(array - value)).argmin()
-    
-    if idx < 2:
-        return 2
-    else:
-        return idx
-
 
 
 def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 'yield_DS_keith40.dat', massdm = 40, blackholem = 2e16, gam = 1.6):
@@ -836,7 +833,7 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
 
     egb_counts = get_all_egb(energies, deltae)/deltae_cut #units of counts per cm^2 per sec per str per MeV
     ##These are the names of the parameters we are fitting.
-    parameters = ['a0', 'a1', 'a2', 'a3']
+    parameters = ['a0', 'a1', 'a2', 'a3', 'a4']
     folder = './pymultinest_chains/' + str(name_of_file)
     livepoints = 400
 
@@ -861,13 +858,7 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
     print('-----------')
     print('gamma for BHs: {}'.format(gam))
     print('mass for BHs: {}'.format(blackholem))
-    highest_range = find_nearest(energiesforBH, central_energies, lum)
-    print('highest energy going to:')
-    print(central_energies[highest_range])
-    print('index:')
-    print(highest_range)
-    print('-------------------------')
-    for energyidx in range(0, highest_range):
+    for energyidx in range(0, 26):
         print(energyidx)
         print('energy here: {}'.format(energies[energyidx]))
         # You should change 'test' to your preferred folder.
@@ -888,7 +879,8 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
         bremtest = poisson_dist(0, int(energyidx))
 
         #Point Sources
-        pointstest = poisson_dist(np.nan, energyidx, points = True)
+        pointstest = poisson_dist(np.nan, energyidx, points = True, single_source = False)
+        pointstest_single = poisson_dist(np.nan, energyidx, points = True, single_source = True)
 
         #EGB counts, we have at each energy bin in units of per cm^2 per s per str per MeV
         egbtest = poisson_dist(np.nan, int(energyidx), egb = True, counts = egb_counts[energyidx], cross_section = test_cross)
@@ -904,14 +896,14 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
         #original data
         ktest = ktest_array[energyidx] #ktest does not include black holes
         
-        args = (pitest, icstest, bremtest, pointstest, egbtest, darkmtest, blackholetest, ktest)
+        args = (pitest, icstest, bremtest, pointstest, pointstest_single, egbtest, darkmtest, blackholetest, ktest)
         #print('-----------------------')
         #print(np.nansum(ktest))
         #print(np.nansum(pitest+ icstest+ bremtest+ pointstest+ egbtest+ darkmtest))
         #print(np.nansum(pitest+ icstest+ bremtest+ pointstest+ egbtest+ darkmtest+blackholetest))
         #print('-----------------------')
         
-        cube_limits = [(-6, 12), (-4, 8), (-4, 8), (-4, 8)]
+        cube_limits = [(-6, 12), (-4, 8), (-4, 8), (-4, 8), (-4, 8)]
         
         def prior(cube, ndim, nparams):
             #cube[0] = (cube[0]*np.abs(np.log10(1.1)-np.log10(.9)) - np.log10(.9)) #from 1e-4 to 1e6 apparently
@@ -919,6 +911,7 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
             cube[1] = (cube[1]*cube_limits[1][1] + cube_limits[1][0])
             cube[2] = (cube[2]*cube_limits[2][1] + cube_limits[2][0])
             cube[3] = (cube[3]*cube_limits[3][1] + cube_limits[3][0])
+            cube[4] = (cube[4]*cube_limits[4][1] + cube_limits[4][0])
             
     
         ##This is the loglikelihood function for multinest – it sends the cube,
@@ -928,65 +921,67 @@ def get_likelihoodat(fbh, ktestname, name_of_file = 'testingnew/', dmfilename = 
         
         #cube, pitest, icstest, bremtest, egbtest, pointstest, darkmtest, blackholetest, ktest
         def likelihood_poisson_multinest(cube, ndim, nparams):
-            pi, ics, brem, points, egb, darkm, blackhole, k = args
+            pi, ics, brem, points, points1, egb, darkm, blackhole, k = args
             #print(np.sum(pi+ics+brem+points+egb+darkm+blackhole))
             
             a0 = 10**cube[0]
             a1 = 10**cube[1]
             a2 = 10**cube[2]
             a3 = 10**cube[3]
+            a4 = 10**cube[3]
             
             #print(a0, a1, a2, a3)
     
-            lamb = a0*pi+a1*ics+a2*brem+a3*points+egb+darkm+blackhole #egb is constant
+            lamb = a0*pi+a1*ics+a2*brem+a3*points+a4*points1+egb+darkm+blackhole #egb is constant
             fprob = -scipy.special.gammaln(k+1)+k*np.log(lamb)-lamb #log likelihood of poisso
             #print('---------------------------------')
             return 2*np.nansum(fprob) #perhaps add negative back, perhaps add 2 back?
         
-        def likelihood_poisson(a0log, a1log, a2log, a3log):
-            pi, ics, brem, points, egb, darkm, blackhole, k = args
+        def likelihood_poisson(a0log, a1log, a2log, a3log, a4log):
+            pi, ics, brem, points, points1, egb, darkm, blackhole, k = args
             #print(np.sum(pi+ics+brem+points+egb+darkm+blackhole))
             #print(a0, a1, a2, a3)
             a0 = 10**a0log
             a1 = 10**a1log
             a2 = 10**a2log
             a3 = 10**a3log
+            a4 = 10**a4log
     
-            lamb = a0*pi+a1*ics+a2*brem+a3*points+egb+darkm+blackhole #egb is constant
+            lamb = a0*pi+a1*ics+a2*brem+a3*points+a4*points1+egb+darkm+blackhole #egb is constant
             fprob = -scipy.special.gammaln(k+1)+k*np.log(lamb)-lamb #log likelihood of poisso
             #print('---------------------------------')
             return -2*np.nansum(fprob) #perhaps add negative back, perhaps add 2 back?
 
         finals = pymultinest.run(loglikelihood_formulti, prior, int(len(parameters)), outputfiles_basename=MYDIR+"/"+ str(energyidx), n_live_points=livepoints, resume=True, verbose=True)
         json.dump(parameters, open(MYDIR+'/' + str(energyidx) + 'params' +'.json', 'w'))
-        const = get_loglikeli(MYDIR, energyidx, MYDIR1, [pitest, icstest, bremtest, egbtest, pointstest, ktest, darkmtest, blackholetest])
-        m = Minuit(likelihood_poisson, a0log=np.log10(const[0]), a1log = np.log10(const[1]), a2log = np.log10(const[2]), a3log = np.log10(const[3]))
+        const = get_loglikeli(MYDIR, energyidx, MYDIR1, [pitest, icstest, bremtest, egbtest, pointstest, pointstest_single, ktest, darkmtest, blackholetest])
+        m = Minuit(likelihood_poisson, a0log=np.log10(const[0]), a1log = np.log10(const[1]), a2log = np.log10(const[2]), a3log = np.log10(const[3]), a4log = np.log10(const[4]))
         lowval = 1
         highval = 1
 
-        m.limits = [(np.log10(const[0])-lowval, np.log10(const[0])+highval), (np.log10(const[1])-lowval, np.log10(const[1])+highval), (np.log10(const[2])-lowval, np.log10(const[2])+highval), (np.log10(const[3])-lowval, np.log10(const[3])+highval)]
+        m.limits = [(np.log10(const[0])-lowval, np.log10(const[0])+highval), (np.log10(const[1])-lowval, np.log10(const[1])+highval), (np.log10(const[2])-lowval, np.log10(const[2])+highval), (np.log10(const[3])-lowval, np.log10(const[3])+highval), (np.log10(const[4])-lowval, np.log10(const[4])+highval)]
         m.migrad()
         m.hesse()
         
         print(m.values)
         
-        fin_consts = [10**m.values[0], 10**m.values[1], 10**m.values[2], 10**m.values[3]]
+        fin_consts = [10**m.values[0], 10**m.values[1], 10**m.values[2], 10**m.values[3], 10**m.values[4]]
         
         print('constants from minuit: ')
         print(fin_consts)
-        likelihood = likelihood_poisson(m.values[0], m.values[1], m.values[2], m.values[3])
+        likelihood = likelihood_poisson(m.values[0], m.values[1], m.values[2], m.values[3], m.values[4])
         #print('current likelihood: {}'.format(likelihood))
         likefbh += likelihood
     print('final likelihood: {}'.format(likefbh))
     return likefbh
 
-def twosig_fbh(testfbh, likefbh0, ktest, name_of_file = 'testingnew/', dmfilename = 'yield_DS_keith40.dat', massdm = 40, blackholem = 2e16, gam = 1.6):
+def twosig_fbh(testfbh, likefbh0, name_of_file = 'testingnew/', dmfilename = 'yield_DS_keith40.dat', massdm = 40, blackholem = 2e16, gam = 1.6):
     print(10**testfbh)
-    return root_find(float(10**testfbh), ktest, namefile = name_of_file, dmfname = dmfilename, mdm = massdm, bhm = blackholem, gamma = gam)-4-likefbh0
+    return root_find(float(10**testfbh), namefile = name_of_file, dmfname = dmfilename, mdm = massdm, bhm = blackholem, gamma = gam)-4-likefbh0
 
-def root_find(fbhtesting, k, namefile = 'testingnew/', dmfname = 'yield_DS_keith40.dat', mdm = 40, bhm = 2e16, gamma = 1.6):
+def root_find(fbhtesting, namefile = 'testingnew/', dmfname = 'yield_DS_keith40.dat', mdm = 40, bhm = 2e16, gamma = 1.6):
     
-    likefbh = get_likelihoodat(fbhtesting, k, name_of_file = namefile, dmfilename = dmfname, massdm = mdm, blackholem = bhm, gam = gamma)
+    likefbh = get_likelihoodat(fbhtesting, name_of_file = namefile, dmfilename = dmfname, massdm = mdm, blackholem = bhm, gam = gamma)
     print('likelihood here: {}'.format(likefbh))
     return np.abs(likefbh)
 
@@ -1000,25 +995,30 @@ def root_find(fbhtesting, k, namefile = 'testingnew/', dmfname = 'yield_DS_keith
 
 
 filelist1 = ['Bremss_00320087_E_50-814008_MeV_healpix_128.fits', 'Bremss_SL_Z6_R20_T100000_C5_E_50-814008_MeV_healpix_128.fits', 'pi0_Model_A_E_50-814008_MeV_healpix_128.fits', 'pi0_Model_F_E_50-814008_MeV_healpix_128.fits', 'ICS_Model_A_E_50-814008_MeV_healpix_128.fits', 'ICS_Model_F_E_50-814008_MeV_healpix_128.fits']
-filelist = ['bremss_healpix_reshuffled_53templates_0511MeV_reran.fits', 'bremss_healpix_reshuffled_53templates_0511MeV_reran.fits', 'pi0_decay_healpix_reshuffled_53templates_0511MeV_reran.fits', 'pi0_decay_healpix_reshuffled_53templates_0511MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits']
+filelist = ['bremss_healpix_reshuffled_61templates_01MeV_reran.fits', 'bremss_healpix_reshuffled_61templates_01MeV_reran.fits', 'pi0_decay_healpix_reshuffled_61templates_01MeV_reran.fits', 'pi0_decay_healpix_reshuffled_61templates_01MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_61templates_01MeV_reran.fits', 'ics_isotropic_healpix_reshuffled_61templates_01MeV_reran.fits']
+evermore_shifted = np.asarray([
+    [33, 21, 49],
+    [154, 112, 82],
+    [241, 149, 91],
+    [142, 52, 38],
+    [33, 21, 49],
+])/256
 
-bremss_reopen = fits.open('ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits')
-bremssenergy_list = np.array([bremss_reopen[i].header['MID_E'] for i in range(len(bremss_reopen) - 1)])
-central_energies = np.copy(bremssenergy_list)
+point_sources = ['Remainingsources_Single_brightestsourcefloating_01MeV_0-61.fits']
+brightest_pointsource = ['4FGL_J1826.2-1450_Single_brightestsourcefloating_01MeV_0-61.fits']
 
-
-point_sources = ['PS_nonfloat_511MeV_0-52.fits']
-
-#for astrogam, use 5 years
+#for eastrogam, use 5 years
 exposure_time = 1.578e8
 
 acceptance_interp = aaa.get_acceptance_interp() #put in the energy in MeV!
 angle_interp = aaa.get_angle_interp()
 
-
+bremss_reopen = fits.open('ics_isotropic_healpix_reshuffled_53templates_0511MeV_reran.fits')
+bremssenergy_list = np.array([bremss_reopen[i].header['MID_E'] for i in range(len(bremss_reopen) - 1)])
+central_energies = np.copy(bremssenergy_list)
 
 #Egammas for evaporating black holes
-energiesforBH = np.logspace(np.log10(.1), np.log10(1e6), num = 1000)
+energiesforBH = np.logspace(np.log10(.05), np.log10(1e7), num = 1000)
 #egamma_values = photon_spectrum.get_egammas(energiesforBH)
 egamma_values = fits.open('egammavals.fits')[0].data
 
@@ -1032,7 +1032,7 @@ for energyidx in range(0, len(cut_energy)):
     acceptance_forpoisson = acceptance_interp(energy_here) #in m^2*str, convert to cm^2
     acceptances.append(acceptance_forpoisson)
     
-#ktest_array = readfile('ktests511.fits')[0].data
+
     
 
 

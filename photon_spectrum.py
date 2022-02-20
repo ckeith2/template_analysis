@@ -454,7 +454,7 @@ def get_egammas(energy_list):
     return egammas
 
 
-def get_integral(egammas, mass_bh = 5e14):
+def get_integral(egammas, mass_bh = 5e14, return_for_paper = False):
     
     #integral_energies = np.linspace(-29.16, 247.8, num = 100)
     #E_gam_energies = np.logspace(np.log10(.511), np.log10(300), num = 100)
@@ -509,6 +509,8 @@ def get_integral(egammas, mass_bh = 5e14):
     #return E_gam_energies, np.asarray(dNgamma)*normalization, flux_photon, fsr
     #return E_gam_energies, flux_photon
     #return E_gam_energies, np.asarray(dNgamma)*normalization, flux_photon, fsr
+    if return_for_paper:
+        return E_gam_energies, np.asarray(dNgamma)*normalization, flux_photon, fsr
     return E_gam_energies, np.asarray(dNgamma)*normalization + flux_photon + fsr
     #return E_gam_energies, dNgamma + flux_photon #flux photon is in photons per MeV per second per BH, 
     #dNgamma is in photons per MeV per second per BH

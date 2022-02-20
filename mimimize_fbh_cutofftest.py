@@ -1018,7 +1018,7 @@ angle_interp = aaa.get_angle_interp()
 
 
 #Egammas for evaporating black holes
-energiesforBH = np.logspace(np.log10(.1), np.log10(1e6), num = 1000)
+energiesforBH = np.logspace(np.log10(.05), np.log10(1e7), num = 1000)
 #egamma_values = photon_spectrum.get_egammas(energiesforBH)
 egamma_values = fits.open('egammavals.fits')[0].data
 
